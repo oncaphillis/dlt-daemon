@@ -130,6 +130,17 @@ int read_socket(int sock)
     return bytes_read;
 }
 
+void ping_thread(void * v_conf)
+{
+
+    while( 1 )
+    {
+        int n = rand(10000);
+        DLT_LOG(dltsystem,DLT_LOG_WARN,
+                DLT_INT(n), DLT_STRING("Ping"),DLT_BOOL(n & 1 == 0));
+    }
+}
+
 void syslog_thread(void *v_conf)
 {
     DLT_LOG(dltsystem, DLT_LOG_DEBUG,

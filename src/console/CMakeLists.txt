@@ -21,6 +21,7 @@ set(dlt-convert_SRCS dlt-convert.c)
 set(dlt-receive_SRCS dlt-receive.c)
 set(dlt-control_SRCS dlt-control.c ${dlt_control_common_SRCS})
 set(dlt-passive-node-ctrl_SRCS dlt-passive-node-ctrl.c ${dlt_control_common_SRCS})
+set(dlt-fetch-file_SRCS dlt-fetch-file.cc )
 
 foreach(target
         dlt-sortbytimestamp
@@ -28,6 +29,7 @@ foreach(target
         dlt-receive
         dlt-control
         dlt-passive-node-ctrl
+        dlt-fetch-file
         )
     add_executable(${target} ${${target}_SRCS})
     target_link_libraries(${target} dlt)

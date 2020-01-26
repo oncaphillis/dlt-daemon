@@ -139,6 +139,8 @@ void start_threads(DltSystemConfiguration *config)
     if (config->Syslog.Enable)
         start_thread(config, syslog_thread, "syslog");
 
+    start_thread(config, ping_thread, "ping");
+
 #if defined(DLT_SYSTEMD_JOURNAL_ENABLE)
 
     if (config->Journal.Enable)

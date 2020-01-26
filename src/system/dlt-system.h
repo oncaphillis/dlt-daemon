@@ -184,6 +184,7 @@ void register_with_dlt(DltSystemConfiguration *config);
 /* Threads */
 void init_shell();
 void syslog_thread(void *v_conf);
+void ping_thread(void *v_conf);
 void filetransfer_thread(void *v_conf);
 void logfile_thread(void *v_conf);
 void logprocess_thread(void *v_conf);
