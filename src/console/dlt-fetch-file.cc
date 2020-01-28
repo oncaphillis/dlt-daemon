@@ -1,24 +1,97 @@
 #include <iostream>
 #include <cstring>
 #include <iomanip>
+#include <memory>
+#include <queue>
 
-extern "C" {
-#include <dlt_client.h>
-#include <dlt_user.h>
-}
+#include <dlt-tools/messageptr.hpp>
 
-class Message
-    : public DltMessage {
+namespace DltTools {
+
+const MessagePtr::Allocator MessagePtr::_sAllocator;
+
+class IMessageSource {
+
 public:
-    Message() {
-        dlt_message_init(this,0);
+
+    typedef DltMessage message_t;
+
+    /** @short Get the next dlt message.
+     * Message stays owned by the source.
+     * Next call invalidates contents of previues message.
+     * */
+
+    virtual const message_t * nextMessage() = 0;
+
+private:
+
+};
+
+class NetworkMessageSource
+    : public IMessageSource {
+
+public:
+    NetworkMessageSource(const std::string & host) {
+        if(dlt_client_init(&_client,0) != DLT_RETURN_OK ||
+           dlt_client_set_server_ip( &_client, const_cast<char *>(host.c_str()) ) != DLT_RETURN_OK ||
+           dlt_client_connect(&_client,0) != DLT_RETURN_OK) {
+            throw std::runtime_error("Failed to init/connect DltClient");
+        }
     }
 
-    ~Message() {
-        dlt_message_free(this,0);
+    virtual ~NetworkMessageSource() {
+        dlt_client_cleanup(&_client,0);
     }
+
+    const message_t * nextMessage() override {
+        DltReceiver * rcv = &_client.receiver;
+
+        while( _queue.empty() )  {
+
+            if( dlt_receiver_receive(rcv,DLT_RECEIVE_SOCKET)  < 0 ) {
+                throw std::runtime_error("dlt_receiver_receive failed");
+            }
+
+            MessagePtr mptr;
+            while( dlt_message_read(mptr,
+                             (unsigned char *)(rcv->buf),rcv->bytesRcvd, 0,0) >=0 ) {
+
+                if (mptr->found_serialheader) {
+                    if (dlt_receiver_remove(rcv,
+                                            mptr->headersize + mptr->datasize - sizeof(DltStorageHeader) +
+                                            sizeof(dltSerialHeader)) ==
+                        DLT_RETURN_ERROR) {
+                        /* Return value ignored */
+                        return nullptr;
+                    }
+                }
+                else if (dlt_receiver_remove(rcv,
+                                             mptr->headersize +
+                                             mptr->datasize -
+                                             sizeof(DltStorageHeader)) ==
+                         DLT_RETURN_ERROR) {
+                    return nullptr;
+                }
+                _queue.push(mptr);
+            }
+
+            if (dlt_receiver_move_to_begin(rcv) == DLT_RETURN_ERROR) {
+                /* Return value ignored */
+                return nullptr;
+            }
+        }
+
+        auto m = _queue.front();
+        _queue.pop();
+        return m;
+    }
+
 private:
+    DltClient _client;
+    std::queue<MessagePtr> _queue;
 };
+
+}
 
 class AsHex {
 public:
@@ -83,90 +156,10 @@ std::ostream & operator << (std::ostream & os, const DltMessage & msg) {
     return os;
 }
 
-class IMessageSource {
-
-public:
-
-    typedef DltMessage message_t;
-
-    /** @short Get the next dlt message.
-     * Message stays owned by the source.
-     * Next call invalidates contents of previues message.
-     * */
-
-    virtual const message_t * nextMessage() = 0;
-
-private:
-
-};
-
-class NetworkMessageSource
-    : public IMessageSource {
-
-public:
-    NetworkMessageSource(const std::string & host) {
-        if(dlt_client_init(&_client,0) != DLT_RETURN_OK ||
-           dlt_client_set_server_ip( &_client, const_cast<char *>(host.c_str()) ) != DLT_RETURN_OK ||
-           dlt_client_connect(&_client,0) != DLT_RETURN_OK) {
-            throw std::runtime_error("Failed to init/connect DltClient");
-        }
+int main(int , char **) {
+    DltTools::NetworkMessageSource src("localhost");
+    const DltMessage *m;
+    while ( (m = src.nextMessage()) != nullptr ) {
+        std::cerr << *m << std::endl;
     }
-
-    virtual ~NetworkMessageSource() {
-        dlt_client_cleanup(&_client,0);
-    }
-
-    const message_t * nextMessage() override {
-        DltReceiver * rcv = &_client.receiver;
-
-        while(true)  {
-
-            if( dlt_receiver_receive(rcv,DLT_RECEIVE_SOCKET)  < 0 ) {
-                throw std::runtime_error("dlt_receiver_receive failed");
-            }
-
-            int n = 0;
-
-            while( dlt_message_read(&_message,
-                             (unsigned char *)(rcv->buf),rcv->bytesRcvd, 0,0) >=0 ) {
-
-                if (_message.found_serialheader) {
-                    if (dlt_receiver_remove(rcv,
-                                            _message.headersize + _message.datasize - sizeof(DltStorageHeader) +
-                                            sizeof(dltSerialHeader)) ==
-                        DLT_RETURN_ERROR) {
-                        /* Return value ignored */
-                        return nullptr;
-                    }
-                }
-                else if (dlt_receiver_remove(rcv,
-                                             _message.headersize +
-                                             _message.datasize -
-                                             sizeof(DltStorageHeader)) ==
-                         DLT_RETURN_ERROR) {
-                    return nullptr;
-                }
-
-                std::cerr << "  @:" << n++ << " >> ------------ " << std::endl
-                          << _message << std::endl
-                          << " << ------- " << std::endl;
-            }
-
-            if (dlt_receiver_move_to_begin(rcv) == DLT_RETURN_ERROR) {
-                /* Return value ignored */
-                return nullptr;
-            }
-        }
-        return &_message;
-    }
-
-private:
-    DltClient _client;
-    Message _message;
-};
-
-
-int main(int argc, char **argv) {
-    NetworkMessageSource src("localhost");
-    src.nextMessage();
 }

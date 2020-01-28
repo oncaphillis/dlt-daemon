@@ -101,6 +101,7 @@ endif()
 
 include_directories(
     ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/include/
     ${PROJECT_SOURCE_DIR}/include/dlt
     ${PROJECT_BINARY_DIR}/include/dlt
     ${PROJECT_SOURCE_DIR}/src/shared
