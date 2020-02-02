@@ -3,8 +3,15 @@
 #include <iomanip>
 #include <memory>
 #include <queue>
+#include <set>
+#include <algorithm>
+#include <fstream>
+
+#include <experimental/filesystem>
 
 #include <dlt-tools/messageptr.hpp>
+
+namespace fs = std::experimental::filesystem;
 
 namespace DltTools {
 
@@ -156,10 +163,114 @@ std::ostream & operator << (std::ostream & os, const DltMessage & msg) {
     return os;
 }
 
-int main(int , char **) {
+class Downloader {
+public:
+    Downloader(const std::string & basename,bool auto_finish=false)
+        : _finished(false)
+        , _auto_finish(auto_finish) {
+
+        auto real_name = basename;
+        auto prefix = real_name;
+        auto postfix = std::string("");
+        auto temp_name = real_name+".tmp";
+
+        auto idx = real_name.rfind('.');
+
+        if( idx != real_name.npos ) {
+            prefix = real_name.substr(0,idx);
+            postfix = real_name.substr(idx);
+        }
+
+        int n=0;
+
+        while( fs::exists(real_name) || fs::exists(temp_name) ) {
+            std::stringstream ss;
+            ss << "("  << ++n << ")";
+            real_name = prefix+ss.str()+postfix;
+            temp_name = real_name+".tmp";
+        }
+        _real_name = real_name;
+        _temp_name = temp_name;
+
+        _rstream = std::make_shared<std::ofstream>(_real_name);
+        _ostream = std::make_shared<std::ofstream>(_temp_name);
+
+        if( ! *_rstream ||  ! *_ostream ) {
+            std::stringstream ss;
+            ss <<  "Failed to create '" << _real_name
+                << "' and/or '" << _temp_name << "'";
+            throw std::runtime_error(ss.str());
+        }
+    }
+
+    ~Downloader() {
+        if(_auto_finish) {
+            finish();
+        } else {
+            if( ! _finished ) {
+                fs::remove(_real_name);
+                fs::remove(_temp_name);
+            }
+        }
+    }
+
+    std::ostream & ostream() {
+        return *_ostream;
+    }
+
+    void finish()  {
+        if(!_finished) {
+            if(_ostream) {
+                _ostream.reset();
+            }
+
+            if(_rstream) {
+                _rstream.reset();
+            }
+            fs::rename(_temp_name,_real_name);
+            _finished =  true;
+        }
+    }
+    const std::string & baseName() const {
+        return _base_name;
+    }
+
+    const std:: string & tempName() const {
+        return _temp_name;
+    }
+
+    const std::string & realName() const {
+        return _real_name;
+    }
+
+private:
+    bool _finished;
+    bool _auto_finish;
+    std::shared_ptr<std:: ostream> _ostream;
+    std::shared_ptr<std:: ostream> _rstream;
+    std::string _base_name;
+    std::string _real_name;
+    std::string _temp_name;
+    };
+
+int main(int argc, char **argv) {
+
+    std::cerr << "H e l l o   World '" << argc << std::endl;
+
+    if(argc==2) {
+        Downloader dl(argv[1],true);
+        std::cerr << " => " << dl.tempName() << std::endl;
+        for(int i=0;i<1000;i++) {
+            dl.ostream() << "AAAAAAAAAAAAAA" << std::endl;
+        }
+    }
+
+
+#if 0
     DltTools::NetworkMessageSource src("localhost");
     const DltMessage *m;
     while ( (m = src.nextMessage()) != nullptr ) {
         std::cerr << *m << std::endl;
     }
+#endif
 }

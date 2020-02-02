@@ -39,3 +39,4 @@ foreach(target
             RUNTIME DESTINATION bin
             COMPONENT base)
 endforeach()
+target_link_libraries(dlt-fetch-file -lstdc++fs)

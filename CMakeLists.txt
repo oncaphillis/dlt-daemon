@@ -148,7 +148,7 @@ endif()
 
 add_compile_options(
     $<$<COMPILE_LANGUAGE:C>:-std=gnu99>
-    $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++11>
+    $<$<COMPILE_LANGUAGE:CXX>:-std=c++17>
     -Wall
     -Wextra
     # -pedantic
